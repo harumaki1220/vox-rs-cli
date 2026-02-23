@@ -1,35 +1,39 @@
 use anyhow::Result;
 use serde::Deserialize;
 
-// 1. APIから返ってくるJSONの形を「構造体」で定義する
-// これがRustの「型安全」の基本です。
 #[derive(Debug, Deserialize)]
 struct Speaker {
     name: String,
     speaker_uuid: String,
 }
 
-#[tokio::main] // 2. 非同期処理を動かすための魔法の言葉
+#[tokio::main]
 async fn main() -> Result<()> {
-    // 3. アクセスするURL
-    let url = "http://localhost:50021/speakers";
+    // 1. データを取ってくる（非同期関数）
+    let speakers = fetch_speakers().await?;
 
+    // 2. データを表示する（普通の関数）
+    display_speakers(&speakers);
+
+    Ok(())
+}
+
+/// VOICEVOX Engineから話者リストを取得する非同期関数
+async fn fetch_speakers() -> Result<Vec<Speaker>> {
+    let url = "http://localhost:50021/speakers";
     println!("VOICEVOXからキャラクターリストを取得中...");
 
-    // 4. HTTPリクエストを送る
-    // .await を忘れると「未来の約束（Future）」だけで終わってしまいます
     let response = reqwest::get(url).await?;
-
-    // 5. JSONを構造体のリスト（Vec）に変換する
-    // ここで定義した Speaker 構造体の形に自動で当てはめてくれます
     let speakers: Vec<Speaker> = response.json().await?;
 
-    println!("--- 登録されているキャラクター一覧 ---");
+    Ok(speakers)
+}
 
-    // 6. 取得したリストをループで表示
+/// 取得した話者リストをコンソールに表示する関数
+/// 引数に & をつけることで「所有権」を奪わずに「貸してもらう（借用）」
+fn display_speakers(speakers: &[Speaker]) {
+    println!("--- 登録されているキャラクター一覧 ---");
     for speaker in speakers {
         println!("キャラ名: {}, UUID: {}", speaker.name, speaker.speaker_uuid);
     }
-
-    Ok(())
 }
