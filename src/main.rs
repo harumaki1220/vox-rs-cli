@@ -8,7 +8,7 @@ use serde_json::Value;
 struct Args {
     /// 喋らせたいテキスト
     #[arg(short, long)]
-    text: String,
+    text: Option<String>, // 一覧表示だけの時もあるので Option にする
 
     /// 話者ID (デフォルトはずんだもん: 3)
     #[arg(short, long, default_value_t = 3)]
@@ -17,12 +17,22 @@ struct Args {
     /// 出力ファイル名
     #[arg(short, long, default_value = "output.wav")]
     output: String,
+
+    /// 話者一覧を表示する
+    #[arg(short, long)]
+    list: bool,
+}
+
+#[derive(Debug, Deserialize)]
+struct Style {
+    id: i32,
+    name: String,
 }
 
 #[derive(Debug, Deserialize)]
 struct Speaker {
     name: String,
-    speaker_uuid: String,
+    styles: Vec<Style>,
 }
 
 #[tokio::main]
@@ -30,21 +40,30 @@ async fn main() -> Result<()> {
     let args = Args::parse();
     let client = reqwest::Client::new();
 
-    // 1. 話者一覧表示
-    let speakers = fetch_speakers(&client).await?;
-    display_speakers(&speakers);
+    // --list が指定された場合
+    if args.list {
+        let speakers = fetch_speakers(&client).await?;
+        display_speakers(&speakers);
+        return Ok(()); // 一覧を出したら終了する
+    }
 
-    println!("\n--- 音声合成を開始します ---");
+    // テキストが指定されていない場合はエラーを出す
+    let text = match args.text {
+        Some(t) => t,
+        None => {
+            anyhow::bail!("テキストを指定してください。例: --text \"こんにちは\"");
+        }
+    };
 
-    // 2. クエリ取得
-    let query = create_audio_query(&client, &args.text, args.speaker).await?;
-    println!("設計図の取得に成功。");
+    println!("--- 音声合成を開始します ---");
 
-    // 3. 音声合成
-    println!("音声データを生成中...");
+    // クエリ取得
+    let query = create_audio_query(&client, &text, args.speaker).await?;
+
+    // 音声合成
     let wav_data = synthesize_voice(&client, &query, args.speaker).await?;
 
-    // 4. ファイル保存
+    // ファイル保存
     std::fs::write(&args.output, wav_data)?;
     println!("成功！ '{}' として保存しました。", args.output);
 
@@ -63,11 +82,12 @@ async fn fetch_speakers(client: &reqwest::Client) -> Result<Vec<Speaker>> {
 }
 
 /// 取得した話者リストをコンソールに表示する関数
-/// 引数に & をつけることで「所有権」を奪わずに「貸してもらう（借用）」
 fn display_speakers(speakers: &[Speaker]) {
-    println!("--- 登録されているキャラクター一覧 ---");
+    println!("--- 利用可能なキャラクターとID一覧 ---");
     for speaker in speakers {
-        println!("キャラ名: {}, UUID: {}", speaker.name, speaker.speaker_uuid);
+        for style in &speaker.styles {
+            println!("[{:>3}] {}: {}", style.id, speaker.name, style.name);
+        }
     }
 }
 
