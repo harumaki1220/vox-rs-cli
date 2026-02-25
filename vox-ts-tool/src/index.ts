@@ -1,19 +1,32 @@
 import { execa } from "execa";
 
 async function main() {
-  console.log("--- TSからRustを呼び出すテスト ---");
+  // 実行時の引数を取得（3番目以降がユーザーの入力）
+  const text = process.argv[2];
+
+  if (!text) {
+    console.log('使用法: npm run dev -- "喋らせたいテキスト"');
+    return;
+  }
 
   try {
     const rustPath = "../vox-rs-cli/target/debug/vox-rs-cli";
 
-    const { stdout } = await execa(rustPath, ["--list"]);
+    console.log(`「${text}」を音声に変換中...`);
 
-    console.log("成功!Rustからの回答：\n");
-    console.log(stdout);
+    // Rustに引数を渡して実行
+    await execa(rustPath, [
+      "--text",
+      text,
+      "--speaker",
+      "3",
+      "--output",
+      "output.wav",
+    ]);
+
+    console.log("音声ファイルの生成に成功しました。");
   } catch (error) {
-    console.error("Rustツールの呼び出しに失敗");
-    console.error("パスが間違っているか、Rustをビルドしていない可能性");
-    console.error(error);
+    console.error("エラーが発生しました:", error);
   }
 }
 
